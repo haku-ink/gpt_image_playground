@@ -1252,6 +1252,29 @@ export default function InputBar() {
     document.addEventListener('selectionchange', handleSelectionChange)
     return () => document.removeEventListener('selectionchange', handleSelectionChange)
   }, [])
+
+  // 点击屏幕两侧空白使输入框失焦
+  useEffect(() => {
+    const handleGlobalMouseDown = (e: MouseEvent) => {
+      const maxW = 1280
+      const clientWidth = document.documentElement.clientWidth
+      if (clientWidth <= maxW) return
+
+      const leftBoundary = (clientWidth - maxW) / 2
+      const rightBoundary = clientWidth - leftBoundary
+
+      if (e.clientX < leftBoundary || e.clientX > rightBoundary) {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur()
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleGlobalMouseDown, true)
+    return () => {
+      document.removeEventListener('mousedown', handleGlobalMouseDown, true)
+    }
+  }, [])
   useEffect(() => {
     adjustTextareaHeight()
   }, [inputImages.length, Boolean(maskDraft), maskPreviewUrl, adjustTextareaHeight])
