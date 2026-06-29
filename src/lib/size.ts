@@ -67,6 +67,23 @@ export function normalizeImageSize(size: string) {
   return `${width}x${height}`
 }
 
+export function parseSizeToDimensions(size: string): { width: number; height: number } | null {
+  const trimmed = size.trim()
+  const match = trimmed.match(SIZE_PATTERN)
+  if (!match) return null
+  const width = Number(match[1])
+  const height = Number(match[2])
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null
+  return { width, height }
+}
+
+export function getSizeTierFromDimensions(width: number, height: number): SizeTier {
+  const pixels = width * height
+  if (pixels <= TIER_PIXEL_BUDGET['1K']) return '1K'
+  if (pixels <= TIER_PIXEL_BUDGET['2K']) return '2K'
+  return '4K'
+}
+
 export function parseRatio(ratio: string) {
   const match = ratio.match(RATIO_PATTERN)
   if (!match) return null

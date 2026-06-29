@@ -45,8 +45,9 @@ import { callImageApi } from './lib/api'
 import { callAgentConversationTitleApi, callAgentResponsesApi, callBatchImageSingle, parseBatchImageCallArguments, type AgentApiResultImage } from './lib/agentApi'
 import { collectAgentRoundOutputImageSlots, extractAgentReferenceIds, getAgentCurrentReferenceId, getAgentGeneratedImageReferenceId, replaceAgentPromptImageReferencesForApi } from './lib/agentImageReferences'
 import { showBrowserNotification } from './lib/browserNotification'
-import { IMAGE_FETCH_CORS_HINT } from './lib/imageApiShared'
+import { IMAGE_FETCH_CORS_HINT, type CallApiResult } from './lib/imageApiShared'
 import { getFalErrorMessage, getFalQueuedImageResult } from './lib/falAiImageApi'
+import { getKieQueuedImageResult } from './lib/kieImageApi'
 import { getCustomQueuedImageResult } from './lib/openaiCompatibleImageApi'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
@@ -1679,7 +1680,8 @@ export function getCodexCliPromptKey(settings: AppSettings): string {
 }
 
 function isOpenAITask(task: TaskRecord) {
-  return (task.apiProvider ?? 'openai') !== 'fal'
+  const provider = task.apiProvider ?? 'openai'
+  return provider !== 'fal' && provider !== 'kie'
 }
 
 function isRunningOpenAITask(task: TaskRecord) {
@@ -4103,6 +4105,7 @@ async function executeTask(taskId: string) {
 
   if (
     taskProvider !== 'fal' &&
+    taskProvider !== 'kie' &&
     !isAsyncCustomProviderTask(requestSettings, taskProvider, task.inputImageIds.length > 0) &&
     !usesConcurrentOpenAIImageRequests(activeProfile, task.params)
   ) {
@@ -4808,14 +4811,23 @@ async function recoverCustomTask(taskId: string) {
   if (!task || !task.customTaskId || task.status === 'done') return
 
   const profile = getCustomRecoveryProfile(settings, task)
-  const customProvider = task.apiProvider ? getCustomProviderDefinition(settings, task.apiProvider) : null
-  if (!profile || !customProvider?.poll) {
+  if (!profile) {
     scheduleCustomRecovery(taskId)
     return
   }
 
   try {
-    const result = await getCustomQueuedImageResult(profile, customProvider, task.customTaskId, task.params)
+    let result: CallApiResult
+    if (task.apiProvider === 'kie') {
+      result = await getKieQueuedImageResult(profile, task.customTaskId, task.params)
+    } else {
+      const customProvider = task.apiProvider ? getCustomProviderDefinition(settings, task.apiProvider) : null
+      if (!customProvider?.poll) {
+        scheduleCustomRecovery(taskId)
+        return
+      }
+      result = await getCustomQueuedImageResult(profile, customProvider, task.customTaskId, task.params)
+    }
     clearCustomRecoveryTimer(taskId)
     await completeRecoveredCustomTask(task, result)
   } catch (err) {
